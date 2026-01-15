@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "DocVision Example",
+    "slug": "expo-doc-vision-example",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "docvision-example",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.example.expodocvision"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-doc-vision",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow $(PRODUCT_NAME) to access your photos for OCR processing."
+        }
+      ]
+    ],
+    "android": {
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ],
+      "package": "com.example.expodocvision"
+    }
+  }
+}

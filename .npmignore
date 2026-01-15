@@ -1,0 +1,31 @@
+# Development files
+node_modules/
+.expo/
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Source TypeScript (keep compiled output)
+# Note: We include src/ for source maps and types
+
+# Test files
+**/__tests__/
+coverage/
+
+# Xcode files
+*.xcworkspace
+*.xcuserdata
+DerivedData/
+
+# CocoaPods (managed by consuming project)
+Pods/
+Podfile.lock
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Logs
+*.log
+npm-debug.log*

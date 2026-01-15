@@ -1,0 +1,54 @@
+{
+  "name": "expo-doc-vision",
+  "version": "0.1.0",
+  "description": "Expo native module for offline document OCR on iOS using Apple Vision & PDFKit",
+  "main": "build/index.js",
+  "types": "build/index.d.ts",
+  "scripts": {
+    "build": "expo-module build && tsc --project plugin/tsconfig.json",
+    "clean": "expo-module clean && rm -rf plugin/build",
+    "lint": "expo-module lint",
+    "test": "expo-module test",
+    "prepare": "expo-module prepare",
+    "prepublishOnly": "expo-module prepublishOnly",
+    "expo-module": "expo-module",
+    "example:dev": "cd example && npm dev"
+  },
+  "keywords": [
+    "expo",
+    "react-native",
+    "ocr",
+    "vision",
+    "pdfkit",
+    "document",
+    "ios",
+    "offline",
+    "privacy"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zhanziyang/expo-doc-vision.git"
+  },
+  "bugs": {
+    "url": "https://github.com/zhanziyang/expo-doc-vision/issues"
+  },
+  "author": "zhanziyang <zhanziyang126@hotmail.com> (https://github.com/zhanziyang)",
+  "license": "MIT",
+  "homepage": "https://github.com/zhanziyang/expo-doc-vision#readme",
+  "peerDependencies": {
+    "expo": "*",
+    "react": "*",
+    "react-native": "*"
+  },
+  "devDependencies": {
+    "expo": "^52.0.0",
+    "expo-module-scripts": "^4.0.0",
+    "expo-modules-core": "^2.0.0",
+    "react-native": "^0.76.0"
+  },
+  "expo": {
+    "autolinking": {
+      "nativeModulesDir": "."
+    }
+  }
+}
