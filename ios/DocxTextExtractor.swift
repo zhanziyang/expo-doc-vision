@@ -172,7 +172,7 @@ enum DocxTextExtractor {
             for textMatch in textMatches {
                 if textMatch.numberOfRanges > 1,
                    let textRange = Range(textMatch.range(at: 1), in: paragraphContent) {
-                    let text = String(paragraphContent[textRange])
+                    let text = decodeXmlEntities(String(paragraphContent[textRange]))
                     if !text.isEmpty {
                         paragraphTexts.append(text)
                     }
@@ -207,7 +207,7 @@ enum DocxTextExtractor {
         for match in matches {
             if match.numberOfRanges > 1,
                let textRange = Range(match.range(at: 1), in: xml) {
-                let text = String(xml[textRange])
+                let text = decodeXmlEntities(String(xml[textRange]))
                 if !text.isEmpty {
                     texts.append(text)
                 }
