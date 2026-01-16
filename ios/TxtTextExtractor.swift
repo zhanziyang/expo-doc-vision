@@ -42,26 +42,19 @@ enum TxtTextExtractor {
     /// Decodes text data by detecting encoding from BOM or trying common encodings.
     private static func decodeTextData(_ data: Data) -> String? {
         // Check for BOM (Byte Order Mark)
-        let bytes = [UInt8](data.prefix(4))
-
-        // UTF-32 BE: 00 00 FE FF
-        if bytes.count >= 4 && bytes[0] == 0x00 && bytes[1] == 0x00 && bytes[2] == 0xFE && bytes[3] == 0xFF {
+        if data.starts(with: [0x00, 0x00, 0xFE, 0xFF]) { // UTF-32 BE
             return String(data: data, encoding: .utf32BigEndian)
         }
-        // UTF-32 LE: FF FE 00 00
-        if bytes.count >= 4 && bytes[0] == 0xFF && bytes[1] == 0xFE && bytes[2] == 0x00 && bytes[3] == 0x00 {
+        if data.starts(with: [0xFF, 0xFE, 0x00, 0x00]) { // UTF-32 LE
             return String(data: data, encoding: .utf32LittleEndian)
         }
-        // UTF-16 BE: FE FF
-        if bytes.count >= 2 && bytes[0] == 0xFE && bytes[1] == 0xFF {
+        if data.starts(with: [0xFE, 0xFF]) { // UTF-16 BE
             return String(data: data, encoding: .utf16BigEndian)
         }
-        // UTF-16 LE: FF FE
-        if bytes.count >= 2 && bytes[0] == 0xFF && bytes[1] == 0xFE {
+        if data.starts(with: [0xFF, 0xFE]) { // UTF-16 LE
             return String(data: data, encoding: .utf16LittleEndian)
         }
-        // UTF-8 BOM: EF BB BF
-        if bytes.count >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF {
+        if data.starts(with: [0xEF, 0xBB, 0xBF]) { // UTF-8
             return String(data: data, encoding: .utf8)
         }
 
