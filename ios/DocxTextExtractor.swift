@@ -58,69 +58,11 @@ enum DocxTextExtractor {
 
     // MARK: - Encoding Detection
 
-    /// Decodes XML data by detecting encoding from BOM or XML declaration.
+    /// Decodes XML data by detecting encoding from BOM or trying common encodings.
     /// OOXML spec requires UTF-8 or UTF-16, but we try additional encodings as fallback.
     private static func decodeXmlData(_ data: Data) -> String? {
-        // Check for BOM (Byte Order Mark)
-        let bytes = [UInt8](data.prefix(4))
-
-        // UTF-32 BE: 00 00 FE FF
-        if bytes.count >= 4 && bytes[0] == 0x00 && bytes[1] == 0x00 && bytes[2] == 0xFE && bytes[3] == 0xFF {
-            return String(data: data, encoding: .utf32BigEndian)
-        }
-        // UTF-32 LE: FF FE 00 00
-        if bytes.count >= 4 && bytes[0] == 0xFF && bytes[1] == 0xFE && bytes[2] == 0x00 && bytes[3] == 0x00 {
-            return String(data: data, encoding: .utf32LittleEndian)
-        }
-        // UTF-16 BE: FE FF
-        if bytes.count >= 2 && bytes[0] == 0xFE && bytes[1] == 0xFF {
-            return String(data: data, encoding: .utf16BigEndian)
-        }
-        // UTF-16 LE: FF FE
-        if bytes.count >= 2 && bytes[0] == 0xFF && bytes[1] == 0xFE {
-            return String(data: data, encoding: .utf16LittleEndian)
-        }
-        // UTF-8 BOM: EF BB BF
-        if bytes.count >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF {
-            return String(data: data, encoding: .utf8)
-        }
-
-        // No BOM - try UTF-8 first (most common for DOCX)
-        if let str = String(data: data, encoding: .utf8) {
-            return str
-        }
-
-        // Try UTF-16 variants
-        if let str = String(data: data, encoding: .utf16) {
-            return str
-        }
-
-        // Last resort: try common legacy encodings
-        let fallbackEncodings: [String.Encoding] = [
-            .isoLatin1,
-            .windowsCP1252,
-            // Chinese encodings
-            String.Encoding(rawValue: CFStringConvertEncodingToNSStringEncoding(CFStringEncoding(CFStringEncodings.GB_18030_2000.rawValue))),  // GB18030
-            String.Encoding(rawValue: CFStringConvertEncodingToNSStringEncoding(CFStringEncoding(CFStringEncodings.GBK_95.rawValue))),         // GBK
-            String.Encoding(rawValue: CFStringConvertEncodingToNSStringEncoding(CFStringEncoding(CFStringEncodings.GB_2312_80.rawValue))),     // GB2312
-            String.Encoding(rawValue: CFStringConvertEncodingToNSStringEncoding(CFStringEncoding(CFStringEncodings.big5.rawValue))),           // Big5 (Traditional Chinese)
-            String.Encoding(rawValue: CFStringConvertEncodingToNSStringEncoding(CFStringEncoding(CFStringEncodings.HZ_GB_2312.rawValue))),     // HZ-GB-2312
-            // Japanese encodings
-            .shiftJIS,
-            .japaneseEUC,
-            // Korean encoding
-            String.Encoding(rawValue: CFStringConvertEncodingToNSStringEncoding(CFStringEncoding(CFStringEncodings.EUC_KR.rawValue))),
-            // ASCII as last resort
-            .ascii
-        ]
-
-        for encoding in fallbackEncodings {
-            if let str = String(data: data, encoding: encoding) {
-                return str
-            }
-        }
-
-        return nil
+        // For XML/DOCX, we don't need strict validation since the content is structured
+        return EncodingUtils.decodeData(data, validateUtf8: false, validateLegacy: false)
     }
 
     // MARK: - XML Text Extraction
