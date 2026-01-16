@@ -151,15 +151,17 @@ class PdfRecognizer {
         // Calculate adaptive scale based on page size
         // Target 2x for quality, but cap at maxRenderDimension
         let baseScale: CGFloat = 2.0
-        let maxDimension = max(pageRect.width, pageRect.height) * baseScale
+        let pageMaxSide = max(pageRect.width, pageRect.height)
 
-        let scale: CGFloat
-        if maxDimension > maxRenderDimension {
-            // Scale down to fit within maxRenderDimension
-            scale = maxRenderDimension / max(pageRect.width, pageRect.height)
-        } else {
-            scale = baseScale
+        guard pageMaxSide > 0 else {
+            throw NSError(
+                domain: "DOCUMENT_LOAD_FAILED",
+                code: 3,
+                userInfo: [NSLocalizedDescriptionKey: "PDF page has invalid dimensions (zero width or height)"]
+            )
         }
+
+        let scale = min(baseScale, maxRenderDimension / pageMaxSide)
 
         let width = Int(pageRect.width * scale)
         let height = Int(pageRect.height * scale)
