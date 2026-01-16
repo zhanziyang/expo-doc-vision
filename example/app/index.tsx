@@ -235,8 +235,8 @@ export default function Index() {
   };
 
   const fileExtension = selectedFile?.toLowerCase().split('.').pop();
-  const isImage = selectedFile && !['pdf', 'docx', 'doc', 'txt'].includes(fileExtension || '');
-  const isDocument = selectedFile && ['pdf', 'docx', 'doc', 'txt'].includes(fileExtension || '');
+  const isImage = selectedFile && !['pdf', 'docx', 'txt'].includes(fileExtension || '');
+  const isDocument = selectedFile && ['pdf', 'docx', 'txt'].includes(fileExtension || '');
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
