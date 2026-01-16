@@ -1,6 +1,6 @@
 {
   "name": "expo-doc-vision",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Expo native module for offline document OCR on iOS using Apple Vision & PDFKit",
   "main": "build/index.js",
   "types": "build/index.d.ts",
