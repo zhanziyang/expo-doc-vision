@@ -91,6 +91,13 @@ public class ExpoDocVisionModule: Module {
                         "source": "docx-xml"
                     ]
 
+                case .epub:
+                    let text = try EpubTextExtractor.extractText(from: fileUrl)
+                    result = [
+                        "text": text,
+                        "source": "epub-html"
+                    ]
+
                 case .txt:
                     let text = try TxtTextExtractor.extractText(from: fileUrl)
                     result = [

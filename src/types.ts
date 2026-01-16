@@ -10,11 +10,15 @@ export type RecognizeOptions = {
 
   /**
    * Type of the document.
-   * - "auto": Automatically detect based on file extension (default)
+   * - "auto": Automatically detect based on file extension (default).
+   *           Supports: pdf, jpg, png, heic, docx, txt, epub
    * - "pdf": Treat as PDF document
    * - "image": Treat as image (jpg, png, heic)
+   * - "docx": Treat as DOCX document
+   * - "txt": Treat as plain text file
+   * - "epub": Treat as EPUB document
    */
-  type?: "auto" | "pdf" | "image";
+  type?: "auto" | "pdf" | "image" | "docx" | "txt" | "epub";
 
   /**
    * Recognition languages in order of preference.
@@ -81,8 +85,9 @@ export type OcrResult = {
    * - "pdf-text": Text was extracted directly from PDF text layer
    * - "docx-xml": Text was extracted from DOCX XML content
    * - "txt": Text was read directly from plain text file
+   * - "epub-html": Text was extracted from EPUB HTML/XHTML content
    */
-  source: "vision" | "pdf-text" | "docx-xml" | "txt";
+  source: "vision" | "pdf-text" | "docx-xml" | "txt" | "epub-html";
 };
 
 /**
