@@ -43,3 +43,11 @@ coverage/
 
 # TypeScript
 *.tsbuildinfo
+
+# Agent
+Agent.md
+CLAUDE.md
+.cursor/
+.claude/
+.shared/
+.codex/
