@@ -34,6 +34,12 @@ enum Utils {
             return .pdf
         case "jpg", "jpeg", "png", "heic", "heif":
             return .image
+        case "docx":
+            return .docx
+        case "doc":
+            return .legacyDoc
+        case "txt":
+            return .txt
         default:
             return .unknown
         }
@@ -49,6 +55,9 @@ enum Utils {
 enum DocumentType {
     case pdf
     case image
+    case docx
+    case legacyDoc
+    case txt
     case unknown
 }
 
