@@ -1,18 +1,19 @@
 # expo-doc-vision
 
-Expo native module for **offline document OCR** on iOS using Apple Vision & PDFKit.
+Expo native module for **offline document text extraction** on iOS.
 
 > ⚠️ **iOS only** — Android is not supported yet
 > ⚠️ **Requires Expo Dev Client or Bare Workflow** — Not compatible with Expo Go
-> ⚠️ **Uses Apple Vision & PDFKit** — No third-party SDKs
-> ⚠️ **Fully offline** — No network requests
+> ⚠️ **Fully offline** — No network requests, no third-party SDKs
 > ⚠️ **No data leaves the device** — Privacy-first design
 
 ## Features
 
-- 🚀 **Blazing fast** — Native Apple Vision runs on-device with hardware acceleration
-- 📄 **PDF OCR** — Extract text from both text-based and scanned PDFs
+- 🚀 **Blazing fast** — Native on-device processing with hardware acceleration
+- 📄 **PDF support** — Extract text from both text-based and scanned PDFs
 - 🖼️ **Image OCR** — Recognize text in JPG, PNG, and HEIC images
+- 📝 **DOCX extraction** — Fast offline text extraction from Word documents
+- 📃 **TXT support** — Read plain text files with automatic encoding detection
 - 🔒 **Privacy-first** — All processing happens on-device, no data leaves your phone
 - 🌐 **Multi-language** — Support for 18+ languages with auto-detection (iOS 16+)
 - ⚡ **Fast & Accurate modes** — Choose between speed and precision
@@ -33,7 +34,7 @@ yarn add expo-doc-vision
 
 ## iOS Requirements
 
-- **iOS 13.0+** (minimum for Apple Vision framework)
+- **iOS 13.0+** (minimum supported version)
 - **Expo SDK 50+** (or React Native 0.73+)
 - **Expo Dev Client** or **Bare Workflow**
 
@@ -42,8 +43,8 @@ yarn add expo-doc-vision
 | iOS Version | Features |
 |-------------|----------|
 | **iOS 13-14** | Basic OCR, PDF text extraction, English only (en-US) |
-| **iOS 15** | Multi-language support (all Vision-supported languages) |
-| **iOS 16+** | Auto language detection, improved accuracy (Revision3) |
+| **iOS 15** | Multi-language support (18+ languages) |
+| **iOS 16+** | Auto language detection, improved accuracy |
 
 > **Note:** `automaticallyDetectsLanguage` and `usesLanguageCorrection` options require iOS 16+. On older versions, these options are ignored gracefully.
 
@@ -138,7 +139,7 @@ Performs OCR on a document (image or PDF).
 |----------|------|-------------|
 | `text` | `string` | Full concatenated text from all pages |
 | `pages` | `OcrPageResult[]` | Per-page results (only for multi-page documents) |
-| `source` | `'vision' \| 'pdf-text'` | Source of text extraction |
+| `source` | `'vision' \| 'pdf-text' \| 'docx-xml' \| 'txt'` | Source of text extraction |
 
 #### OcrPageResult
 
@@ -184,6 +185,8 @@ try {
 | Image | `.jpg`, `.jpeg`, `.png`, `.heic`, `.heif` | Apple Vision OCR |
 | PDF (text-based) | `.pdf` | PDFKit text extraction |
 | PDF (scanned) | `.pdf` | PDFKit → render → Vision OCR |
+| DOCX | `.docx` | Offline XML extraction (no OCR) |
+| TXT | `.txt` | Direct read with encoding detection |
 
 ## Limitations
 
@@ -191,7 +194,7 @@ try {
 - **No bounding boxes** — Only text content is returned
 - **No streaming** — Results are returned all at once
 - **No handwriting** — Optimized for printed text
-- **No .doc/.docx** — Only images and PDFs are supported
+- **No .doc support** — Legacy Word binary format (`.doc`) cannot be parsed offline; convert to `.docx` or `.pdf`
 
 ## How It Works
 
@@ -207,6 +210,20 @@ try {
 1. Load image using `CGImageSource`
 2. Run `VNRecognizeTextRequest` with specified options
 3. Return concatenated text from all observations
+
+### DOCX Processing
+
+1. Read DOCX file as ZIP archive (DOCX is a ZIP container)
+2. Extract `word/document.xml` from the archive
+3. Parse XML and extract text from `<w:t>` elements
+4. Return plain text (no OCR needed, significantly faster)
+
+### TXT Processing
+
+1. Read file as raw bytes
+2. Detect encoding via BOM (Byte Order Mark) if present
+3. Try encodings in order: UTF-8, UTF-16, then legacy encodings
+4. Supported encodings: UTF-8, UTF-16, UTF-32, GB18030, GBK, GB2312, Big5, Shift-JIS, EUC-JP, EUC-KR, Windows-1252, ISO-8859-1
 
 ## Roadmap
 

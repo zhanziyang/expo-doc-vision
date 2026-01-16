@@ -38,7 +38,7 @@ function ResultDisplay({
 
   return (
     <View style={styles.resultContainer}>
-      <Text style={styles.sectionTitle}>OCR Result:</Text>
+      <Text style={styles.sectionTitle}>Result:</Text>
       <View style={styles.statsContainer}>
         <Text style={styles.statsText}>Source: {result.source}</Text>
         {result.pages && (
@@ -161,7 +161,6 @@ export default function Index() {
         automaticallyDetectsLanguage: true,
         // language: ['en-US'],
       });
-      console.log('ocrResult', ocrResult);
       setResult(ocrResult);
     } catch (e) {
       if (e instanceof ExpoDocVisionError) {
@@ -219,7 +218,12 @@ export default function Index() {
     clearState();
 
     const pickerResult = await DocumentPicker.getDocumentAsync({
-      type: ['application/pdf', 'image/*'],
+      type: [
+        'application/pdf',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
+        'text/plain', // .txt
+        'image/*',
+      ],
       copyToCacheDirectory: true,
     });
 
@@ -230,7 +234,9 @@ export default function Index() {
     }
   };
 
-  const isImage = selectedFile && !selectedFile.toLowerCase().endsWith('.pdf');
+  const fileExtension = selectedFile?.toLowerCase().split('.').pop();
+  const isImage = selectedFile && !['pdf', 'docx', 'txt'].includes(fileExtension || '');
+  const isDocument = selectedFile && ['pdf', 'docx', 'txt'].includes(fileExtension || '');
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -275,7 +281,7 @@ export default function Index() {
           <Text style={styles.buttonText}>Take Photo</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.button} onPress={pickDocument}>
-          <Text style={styles.buttonText}>Pick PDF</Text>
+          <Text style={styles.buttonText}>Pick Document</Text>
         </TouchableOpacity>
       </View>
 
@@ -293,9 +299,9 @@ export default function Index() {
         </View>
       )}
 
-      {selectedFile && !isImage && (
+      {selectedFile && isDocument && (
         <View style={styles.previewContainer}>
-          <Text style={styles.sectionTitle}>Selected PDF:</Text>
+          <Text style={styles.sectionTitle}>Selected Document:</Text>
           <Text style={styles.fileName}>{selectedFile.split('/').pop()}</Text>
         </View>
       )}

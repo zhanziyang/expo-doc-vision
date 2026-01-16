@@ -84,6 +84,27 @@ public class ExpoDocVisionModule: Module {
                         "source": "vision"
                     ]
 
+                case .docx:
+                    let text = try DocxTextExtractor.extractText(from: fileUrl)
+                    result = [
+                        "text": text,
+                        "source": "docx-xml"
+                    ]
+
+                case .txt:
+                    let text = try TxtTextExtractor.extractText(from: fileUrl)
+                    result = [
+                        "text": text,
+                        "source": "txt"
+                    ]
+
+                case .legacyDoc:
+                    promise.reject(
+                        "UNSUPPORTED_FILE_TYPE",
+                        "DOC format is not supported offline. Please convert to DOCX or PDF."
+                    )
+                    return
+
                 case .unknown:
                     DispatchQueue.main.async {
                         promise.reject(

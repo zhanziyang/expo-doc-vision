@@ -79,8 +79,10 @@ export type OcrResult = {
    * Source of the text extraction.
    * - "vision": Text was extracted using Apple Vision OCR
    * - "pdf-text": Text was extracted directly from PDF text layer
+   * - "docx-xml": Text was extracted from DOCX XML content
+   * - "txt": Text was read directly from plain text file
    */
-  source: "vision" | "pdf-text";
+  source: "vision" | "pdf-text" | "docx-xml" | "txt";
 };
 
 /**
