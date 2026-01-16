@@ -222,6 +222,7 @@ export default function Index() {
         'application/pdf',
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
         'text/plain', // .txt
+        'application/epub+zip', // .epub
         'image/*',
       ],
       copyToCacheDirectory: true,
@@ -235,8 +236,8 @@ export default function Index() {
   };
 
   const fileExtension = selectedFile?.toLowerCase().split('.').pop();
-  const isImage = selectedFile && !['pdf', 'docx', 'txt'].includes(fileExtension || '');
-  const isDocument = selectedFile && ['pdf', 'docx', 'txt'].includes(fileExtension || '');
+  const isImage = selectedFile && !['pdf', 'docx', 'txt', 'epub'].includes(fileExtension || '');
+  const isDocument = selectedFile && ['pdf', 'docx', 'txt', 'epub'].includes(fileExtension || '');
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>

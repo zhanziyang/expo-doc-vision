@@ -4,8 +4,8 @@ Pod::Spec.new do |s|
   s.summary        = 'Expo native module for offline document OCR on iOS using Apple Vision & PDFKit'
   s.description    = <<-DESC
     expo-doc-vision is an Expo native module that provides offline document OCR
-    capabilities on iOS using Apple Vision and PDFKit. It supports both images
-    (JPG, PNG, HEIC) and PDF documents (text-based and scanned).
+    capabilities on iOS using Apple Vision and PDFKit. It supports images
+    (JPG, PNG, HEIC), PDF documents (text-based and scanned), DOCX, TXT, and EPUB.
   DESC
   s.author         = 'zhanziyang'
   s.homepage       = 'https://github.com/zhanziyang/expo-doc-vision'

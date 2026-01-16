@@ -14,6 +14,7 @@ Expo native module for **offline document text extraction** on iOS.
 - 🖼️ **Image OCR** — Recognize text in JPG, PNG, and HEIC images
 - 📝 **DOCX extraction** — Fast offline text extraction from Word documents
 - 📃 **TXT support** — Read plain text files with automatic encoding detection
+- 📚 **EPUB extraction** — Offline text extraction from EPUB books
 - 🔒 **Privacy-first** — All processing happens on-device, no data leaves your phone
 - 🌐 **Multi-language** — Support for 18+ languages with auto-detection (iOS 16+)
 - ⚡ **Fast & Accurate modes** — Choose between speed and precision
@@ -110,24 +111,38 @@ import { recognize } from 'expo-doc-vision';
 
 const result = await recognize({
   uri: 'file:///path/to/document.pdf',
-  type: 'auto',              // 'auto' | 'pdf' | 'image'
+  type: 'auto',              // 'auto' | 'pdf' | 'image' | 'epub'
   mode: 'accurate',          // 'fast' | 'accurate'
   language: ['en-US', 'zh-Hans'], // BCP 47 language codes
 });
+```
+
+### EPUB Documents
+
+```typescript
+import { recognize } from 'expo-doc-vision';
+
+// Recognize text from an EPUB
+const result = await recognize({
+  uri: 'file:///path/to/book.epub',
+});
+
+console.log(result.source);
+// => "epub-html"
 ```
 
 ## API Reference
 
 ### `recognize(options: RecognizeOptions): Promise<OcrResult>`
 
-Performs OCR on a document (image or PDF).
+Performs OCR on a document (image, PDF, EPUB, or text document).
 
 #### RecognizeOptions
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
 | `uri` | `string` | *required* | URI of the document (file://, content://, or absolute path) |
-| `type` | `'auto' \| 'pdf' \| 'image'` | `'auto'` | Document type (auto-detected from extension) |
+| `type` | `'auto' \| 'pdf' \| 'image' \| 'epub'` | `'auto'` | Document type (auto-detected from extension) |
 | `mode` | `'fast' \| 'accurate'` | `'accurate'` | Recognition mode |
 | `language` | `string[]` | `[]` | Recognition languages (BCP 47 codes) |
 | `automaticallyDetectsLanguage` | `boolean` | `true` | Auto-detect language (iOS 16+) |
@@ -139,7 +154,7 @@ Performs OCR on a document (image or PDF).
 |----------|------|-------------|
 | `text` | `string` | Full concatenated text from all pages |
 | `pages` | `OcrPageResult[]` | Per-page results (only for multi-page documents) |
-| `source` | `'vision' \| 'pdf-text' \| 'docx-xml' \| 'txt'` | Source of text extraction |
+| `source` | `'vision' \| 'pdf-text' \| 'docx-xml' \| 'txt' \| 'epub-html'` | Source of text extraction |
 
 #### OcrPageResult
 
@@ -187,6 +202,7 @@ try {
 | PDF (scanned) | `.pdf` | PDFKit → render → Vision OCR |
 | DOCX | `.docx` | Offline XML extraction (no OCR) |
 | TXT | `.txt` | Direct read with encoding detection |
+| EPUB | `.epub` | Offline HTML/XHTML extraction |
 
 ## Limitations
 
@@ -224,6 +240,13 @@ try {
 2. Detect encoding via BOM (Byte Order Mark) if present
 3. Try encodings in order: UTF-8, UTF-16, then legacy encodings
 4. Supported encodings: UTF-8, UTF-16, UTF-32, GB18030, GBK, GB2312, Big5, Shift-JIS, EUC-JP, EUC-KR, Windows-1252, ISO-8859-1
+
+### EPUB Processing
+
+1. Read EPUB container (`META-INF/container.xml`) to locate the package document
+2. Parse the package manifest and spine to find readable content
+3. Extract text from HTML/XHTML entries in reading order
+4. Strip markup and return plain text
 
 ## Roadmap
 

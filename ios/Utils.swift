@@ -36,6 +36,8 @@ enum Utils {
             return .image
         case "docx":
             return .docx
+        case "epub":
+            return .epub
         case "doc":
             return .legacyDoc
         case "txt":
@@ -56,6 +58,7 @@ enum DocumentType {
     case pdf
     case image
     case docx
+    case epub
     case legacyDoc
     case txt
     case unknown

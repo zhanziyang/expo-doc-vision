@@ -7,7 +7,7 @@ export * from "./types";
 export * from "./errors";
 
 /**
- * Perform OCR on a document (image or PDF).
+ * Perform OCR on a document (image, PDF, or EPUB).
  *
  * @param options - Recognition options including URI and settings
  * @returns Promise resolving to OCR results
@@ -18,7 +18,7 @@ export * from "./errors";
  * import { recognize } from 'expo-doc-vision';
  *
  * const result = await recognize({
- *   uri: 'file:///path/to/document.pdf',
+ *   uri: 'file:///path/to/book.epub',
  *   mode: 'accurate',
  *   language: ['en-US'],
  * });
