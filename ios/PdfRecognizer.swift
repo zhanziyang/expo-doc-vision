@@ -15,6 +15,10 @@ class PdfRecognizer {
     /// Minimum text length to consider a PDF as text-based.
     private static let minTextLength = 20
 
+    /// Maximum dimension (width or height) for rendered page images.
+    /// This caps memory usage for large pages while maintaining OCR accuracy.
+    private static let maxRenderDimension: CGFloat = 2048
+
     /// Performs OCR on a PDF file.
     /// - Parameters:
     ///   - url: URL to the PDF file
@@ -82,6 +86,7 @@ class PdfRecognizer {
     }
 
     /// Recognizes text from scanned PDF pages using Vision OCR.
+    /// Processes pages with careful memory management to avoid memory warnings.
     private static func recognizeScannedPdf(
         document: PDFDocument,
         languages: [String],
@@ -91,30 +96,46 @@ class PdfRecognizer {
     ) throws -> PdfRecognitionResult {
         var pages: [[String: Any]] = []
         var allText = ""
+        let pageCount = document.pageCount
 
-        for pageIndex in 0..<document.pageCount {
-            guard let page = document.page(at: pageIndex) else { continue }
+        // Process pages in batches to allow memory cleanup
+        let batchSize = 5
 
-            let pageText: String = try autoreleasepool {
-                let pageImage = try renderPageToImage(page: page)
-                return try ImageRecognizer.performOCR(
-                    on: pageImage,
-                    languages: languages,
-                    mode: mode,
-                    automaticallyDetectsLanguage: automaticallyDetectsLanguage,
-                    usesLanguageCorrection: usesLanguageCorrection
-                )
+        for batchStart in stride(from: 0, to: pageCount, by: batchSize) {
+            let batchEnd = min(batchStart + batchSize, pageCount)
+
+            // Force memory cleanup between batches by scoping autoreleased objects per batch.
+            try autoreleasepool {
+                // Process each page in the batch within an autoreleasepool
+                for pageIndex in batchStart..<batchEnd {
+                    guard let page = document.page(at: pageIndex) else { continue }
+
+                    let pageText: String = try autoreleasepool {
+                        let pageImage = try renderPageToImage(page: page)
+                        return try ImageRecognizer.performOCR(
+                            on: pageImage,
+                            languages: languages,
+                            mode: mode,
+                            automaticallyDetectsLanguage: automaticallyDetectsLanguage,
+                            usesLanguageCorrection: usesLanguageCorrection
+                        )
+                    }
+
+                    pages.append([
+                        "page": pageIndex + 1,
+                        "text": pageText
+                    ])
+
+                    if !allText.isEmpty && !pageText.isEmpty {
+                        allText += "\n\n"
+                    }
+                    allText += pageText
+                }
             }
 
-            pages.append([
-                "page": pageIndex + 1,
-                "text": pageText
-            ])
-
-            if !allText.isEmpty && !pageText.isEmpty {
-                allText += "\n\n"
-            }
-            allText += pageText
+            #if DEBUG
+            print("[ExpoDocVision] Processed pages \(batchStart + 1)-\(batchEnd) of \(pageCount)")
+            #endif
         }
 
         return PdfRecognitionResult(
@@ -125,11 +146,25 @@ class PdfRecognizer {
     }
 
     /// Renders a PDF page to CGImage for OCR processing.
+    /// Uses adaptive scaling to cap memory usage for large pages.
     private static func renderPageToImage(page: PDFPage) throws -> CGImage {
         let pageRect = page.bounds(for: .mediaBox)
 
-        // Use 2x scale for better OCR accuracy
-        let scale: CGFloat = 2.0
+        // Calculate adaptive scale based on page size
+        // Target 2x for quality, but cap at maxRenderDimension
+        let baseScale: CGFloat = 2.0
+        let pageMaxSide = max(pageRect.width, pageRect.height)
+
+        guard pageMaxSide > 0 else {
+            throw NSError(
+                domain: "DOCUMENT_LOAD_FAILED",
+                code: 3,
+                userInfo: [NSLocalizedDescriptionKey: "PDF page has invalid dimensions (zero width or height)"]
+            )
+        }
+
+        let scale = min(baseScale, maxRenderDimension / pageMaxSide)
+
         let width = Int(pageRect.width * scale)
         let height = Int(pageRect.height * scale)
 
