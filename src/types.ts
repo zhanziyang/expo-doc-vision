@@ -4,7 +4,7 @@
 export type RecognizeOptions = {
   /**
    * URI of the document to recognize.
-   * Supports file://, content://, and app-relative paths.
+   * Supports file:// and absolute paths.
    */
   uri: string;
 

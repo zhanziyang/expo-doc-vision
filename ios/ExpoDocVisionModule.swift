@@ -85,10 +85,12 @@ public class ExpoDocVisionModule: Module {
                     ]
 
                 case .unknown:
-                    promise.reject(
-                        "UNSUPPORTED_FILE_TYPE",
-                        "Unsupported file type: \(fileUrl.pathExtension)"
-                    )
+                    DispatchQueue.main.async {
+                        promise.reject(
+                            "UNSUPPORTED_FILE_TYPE",
+                            "Unsupported file type: \(fileUrl.pathExtension)"
+                        )
+                    }
                     return
                 }
 
@@ -98,13 +100,27 @@ public class ExpoDocVisionModule: Module {
 
             } catch let error as NSError {
                 DispatchQueue.main.async {
-                    promise.reject(error.domain, error.localizedDescription)
+                    let errorCode = Self.mapErrorCode(error.domain)
+                    promise.reject(errorCode, error.localizedDescription)
                 }
             } catch {
                 DispatchQueue.main.async {
                     promise.reject("OCR_FAILED", error.localizedDescription)
                 }
             }
+        }
+    }
+
+    private static func mapErrorCode(_ domain: String) -> String {
+        switch domain {
+        case "DOCUMENT_LOAD_FAILED",
+             "OCR_FAILED",
+             "FILE_NOT_FOUND",
+             "UNSUPPORTED_FILE_TYPE",
+             "INVALID_OPTIONS":
+            return domain
+        default:
+            return "OCR_FAILED"
         }
     }
 }

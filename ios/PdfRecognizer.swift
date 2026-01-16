@@ -32,7 +32,7 @@ class PdfRecognizer {
     ) throws -> PdfRecognitionResult {
         guard let document = PDFDocument(url: url) else {
             throw NSError(
-                domain: "ExpoDocVision",
+                domain: "DOCUMENT_LOAD_FAILED",
                 code: 3,
                 userInfo: [NSLocalizedDescriptionKey: "Failed to load PDF from \(url.path)"]
             )
@@ -95,14 +95,16 @@ class PdfRecognizer {
         for pageIndex in 0..<document.pageCount {
             guard let page = document.page(at: pageIndex) else { continue }
 
-            let pageImage = try renderPageToImage(page: page)
-            let pageText = try ImageRecognizer.performOCR(
-                on: pageImage,
-                languages: languages,
-                mode: mode,
-                automaticallyDetectsLanguage: automaticallyDetectsLanguage,
-                usesLanguageCorrection: usesLanguageCorrection
-            )
+            let pageText: String = try autoreleasepool {
+                let pageImage = try renderPageToImage(page: page)
+                return try ImageRecognizer.performOCR(
+                    on: pageImage,
+                    languages: languages,
+                    mode: mode,
+                    automaticallyDetectsLanguage: automaticallyDetectsLanguage,
+                    usesLanguageCorrection: usesLanguageCorrection
+                )
+            }
 
             pages.append([
                 "page": pageIndex + 1,
@@ -154,7 +156,7 @@ class PdfRecognizer {
 
         guard let cgImage = image.cgImage else {
             throw NSError(
-                domain: "ExpoDocVision",
+                domain: "DOCUMENT_LOAD_FAILED",
                 code: 3,
                 userInfo: [NSLocalizedDescriptionKey: "Failed to render PDF page to image"]
             )
