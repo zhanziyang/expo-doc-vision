@@ -104,33 +104,35 @@ class PdfRecognizer {
         for batchStart in stride(from: 0, to: pageCount, by: batchSize) {
             let batchEnd = min(batchStart + batchSize, pageCount)
 
-            // Process each page in the batch within an autoreleasepool
-            for pageIndex in batchStart..<batchEnd {
-                guard let page = document.page(at: pageIndex) else { continue }
+            // Force memory cleanup between batches by scoping autoreleased objects per batch.
+            try autoreleasepool {
+                // Process each page in the batch within an autoreleasepool
+                for pageIndex in batchStart..<batchEnd {
+                    guard let page = document.page(at: pageIndex) else { continue }
 
-                let pageText: String = try autoreleasepool {
-                    let pageImage = try renderPageToImage(page: page)
-                    return try ImageRecognizer.performOCR(
-                        on: pageImage,
-                        languages: languages,
-                        mode: mode,
-                        automaticallyDetectsLanguage: automaticallyDetectsLanguage,
-                        usesLanguageCorrection: usesLanguageCorrection
-                    )
+                    let pageText: String = try autoreleasepool {
+                        let pageImage = try renderPageToImage(page: page)
+                        return try ImageRecognizer.performOCR(
+                            on: pageImage,
+                            languages: languages,
+                            mode: mode,
+                            automaticallyDetectsLanguage: automaticallyDetectsLanguage,
+                            usesLanguageCorrection: usesLanguageCorrection
+                        )
+                    }
+
+                    pages.append([
+                        "page": pageIndex + 1,
+                        "text": pageText
+                    ])
+
+                    if !allText.isEmpty && !pageText.isEmpty {
+                        allText += "\n\n"
+                    }
+                    allText += pageText
                 }
-
-                pages.append([
-                    "page": pageIndex + 1,
-                    "text": pageText
-                ])
-
-                if !allText.isEmpty && !pageText.isEmpty {
-                    allText += "\n\n"
-                }
-                allText += pageText
             }
 
-            // Force memory cleanup between batches
             #if DEBUG
             print("[ExpoDocVision] Processed pages \(batchStart + 1)-\(batchEnd) of \(pageCount)")
             #endif
