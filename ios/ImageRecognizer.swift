@@ -22,7 +22,7 @@ class ImageRecognizer {
     ) throws -> String {
         guard let cgImage = loadCGImage(from: url) else {
             throw NSError(
-                domain: "ExpoDocVision",
+                domain: "DOCUMENT_LOAD_FAILED",
                 code: 3,
                 userInfo: [NSLocalizedDescriptionKey: "Failed to load image from \(url.path)"]
             )
@@ -117,7 +117,7 @@ class ImageRecognizer {
             try handler.perform([request])
         } catch {
             throw NSError(
-                domain: "ExpoDocVision",
+                domain: "OCR_FAILED",
                 code: 4,
                 userInfo: [
                     NSLocalizedDescriptionKey: "OCR processing failed",
