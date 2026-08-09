@@ -94,3 +94,45 @@ export type OcrResult = {
  * Alias for OcrResult for API consistency with recognize().
  */
 export type RecognizeResult = OcrResult;
+
+/** Metadata describing how pages in a PDF will be processed. */
+export type PdfInfo = {
+  pageCount: number;
+  textPageCount: number;
+  scannedPageCount: number;
+  hasTextLayer: boolean;
+};
+
+export type PdfPageStatus = "success" | "blank" | "failed";
+
+export type PdfPageError = {
+  code: string;
+  message: string;
+};
+
+/** Result for one page in a PDF range request. */
+export type PdfPageResult = {
+  page: number;
+  text: string;
+  status: PdfPageStatus;
+  source: "pdf-text" | "vision";
+  error?: PdfPageError;
+};
+
+/** Options for recognizing an inclusive, 1-based PDF page range. */
+export type RecognizePdfPagesOptions = {
+  uri: string;
+  startPage: number;
+  endPage: number;
+  language?: string[];
+  mode?: "fast" | "accurate";
+  automaticallyDetectsLanguage?: boolean;
+  usesLanguageCorrection?: boolean;
+};
+
+export type PdfPageRangeResult = {
+  pageCount: number;
+  startPage: number;
+  endPage: number;
+  pages: PdfPageResult[];
+};

@@ -104,6 +104,34 @@ console.log(result.source);
 // => "pdf-text" (text-based PDF) or "vision" (scanned PDF)
 ```
 
+### Large and Mixed PDFs
+
+Process large PDFs in small, resumable ranges instead of waiting for the entire
+document:
+
+```typescript
+import { getPdfInfo, recognizePdfPages } from 'expo-doc-vision';
+
+const uri = 'file:///path/to/large-scanned-book.pdf';
+const info = await getPdfInfo(uri);
+
+for (let startPage = 1; startPage <= info.pageCount; startPage += 5) {
+  const result = await recognizePdfPages({
+    uri,
+    startPage,
+    endPage: Math.min(startPage + 4, info.pageCount),
+    language: ['zh-Hans'],
+  });
+
+  // Persist successful/blank pages and retry failed pages as needed.
+  console.log(result.pages);
+}
+```
+
+PDF page ranges are 1-based and inclusive. Each requested page is returned with
+`success`, `blank`, or `failed` status. Mixed PDFs use their text layer where
+available and Vision OCR only on scanned pages.
+
 ### With Options
 
 ```typescript
@@ -136,6 +164,17 @@ console.log(result.source);
 ### `recognize(options: RecognizeOptions): Promise<OcrResult>`
 
 Performs OCR on a document (image, PDF, EPUB, or text document).
+
+### `getPdfInfo(uri: string): Promise<PdfInfo>`
+
+Returns `pageCount`, `textPageCount`, `scannedPageCount`, and `hasTextLayer`
+without running OCR.
+
+### `recognizePdfPages(options: RecognizePdfPagesOptions): Promise<PdfPageRangeResult>`
+
+Recognizes an inclusive page range. Page-level failures are returned in the
+`pages` array and do not reject the whole range. Invalid ranges and document
+load failures reject the promise.
 
 #### RecognizeOptions
 
@@ -208,7 +247,7 @@ try {
 
 - **iOS only** — Android support is planned for future releases
 - **No bounding boxes** — Only text content is returned
-- **No streaming** — Results are returned all at once
+- **No progress events** — Use small PDF page-range calls to report progress and cancel between ranges
 - **No handwriting** — Optimized for printed text
 - **No .doc support** — Legacy Word binary format (`.doc`) cannot be parsed offline; convert to `.docx` or `.pdf`
 
@@ -217,9 +256,9 @@ try {
 ### PDF Processing
 
 1. Load PDF using `PDFDocument`
-2. Try to extract text using `PDFDocument.string`
-3. If text length > 20 characters → return as text-based PDF
-4. Otherwise → render each page to image → run Vision OCR
+2. Inspect each page for a usable text layer
+3. Extract text directly from text-backed pages
+4. Render scanned pages to images and run Vision OCR
 
 ### Image Processing
 
@@ -252,7 +291,7 @@ try {
 
 - [ ] Android support (ML Kit)
 - [ ] Bounding box coordinates
-- [ ] Progress callbacks
+- [x] Page-range processing
 - [ ] Confidence scores
 - [ ] Page rotation detection
 

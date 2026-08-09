@@ -11,7 +11,13 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
-import { recognize, RecognizeResult, ExpoDocVisionError } from 'expo-doc-vision';
+import {
+  recognize,
+  getPdfInfo,
+  recognizePdfPages,
+  RecognizeResult,
+  ExpoDocVisionError,
+} from 'expo-doc-vision';
 
 // Separate component for displaying OCR results with virtualized long text
 function ResultDisplay({
@@ -173,6 +179,45 @@ export default function Index() {
     }
   };
 
+  const runPdfPreview = async (uri: string) => {
+    setLoading(true);
+    setError(null);
+    setResult(null);
+
+    try {
+      const info = await getPdfInfo(uri);
+      if (info.pageCount === 0) {
+        setResult({ text: '', pages: [], source: 'pdf-text' });
+        return;
+      }
+
+      const range = await recognizePdfPages({
+        uri,
+        startPage: 1,
+        endPage: Math.min(5, info.pageCount),
+        mode,
+        automaticallyDetectsLanguage: true,
+      });
+      const failedPages = range.pages.filter((page) => page.status === 'failed');
+      if (failedPages.length > 0) {
+        setError(`Failed pages: ${failedPages.map((page) => page.page).join(', ')}`);
+      }
+      setResult({
+        text: range.pages.map((page) => page.text).filter(Boolean).join('\n\n'),
+        pages: range.pages.map(({ page, text }) => ({ page, text })),
+        source: range.pages.some((page) => page.source === 'vision') ? 'vision' : 'pdf-text',
+      });
+    } catch (e) {
+      if (e instanceof ExpoDocVisionError) {
+        setError(`${e.code}: ${e.message}`);
+      } else {
+        setError(String(e));
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const pickImage = async () => {
     clearState();
 
@@ -229,9 +274,14 @@ export default function Index() {
     });
 
     if (!pickerResult.canceled && pickerResult.assets[0]) {
-      const uri = pickerResult.assets[0].uri;
+      const asset = pickerResult.assets[0];
+      const uri = asset.uri;
       setSelectedFile(uri);
-      await runOCR(uri);
+      if (asset.name.toLowerCase().endsWith('.pdf')) {
+        await runPdfPreview(uri);
+      } else {
+        await runOCR(uri);
+      }
     }
   };
 

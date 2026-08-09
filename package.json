@@ -1,6 +1,6 @@
 {
   "name": "expo-doc-vision",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Expo native module for offline document OCR on iOS using Apple Vision & PDFKit",
   "main": "build/index.js",
   "types": "build/index.d.ts",
@@ -50,14 +50,27 @@
     "react-native": "*"
   },
   "devDependencies": {
+    "@babel/core": "^7.25.2",
+    "@types/jest": "^29.5.14",
+    "eslint": "^8.57.1",
     "expo": "^52.0.0",
     "expo-module-scripts": "^4.0.0",
     "expo-modules-core": "^2.0.0",
-    "react-native": "^0.76.0"
+    "jest": "^29.7.0",
+    "prettier": "^3.4.2",
+    "react": "18.3.1",
+    "react-native": "^0.76.0",
+    "react-test-renderer": "18.3.1"
   },
   "expo": {
     "autolinking": {
       "nativeModulesDir": "."
     }
+  },
+  "jest": {
+    "preset": "./node_modules/expo-module-scripts/jest-preset-cli.js",
+    "roots": [
+      "<rootDir>/src"
+    ]
   }
 }
