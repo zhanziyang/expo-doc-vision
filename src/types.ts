@@ -48,6 +48,13 @@ export type RecognizeOptions = {
    * @default true
    */
   usesLanguageCorrection?: boolean;
+
+  /**
+   * Maximum number of PDF pages recognized at the same time.
+   * Only applies to PDF documents. Use 1 for serial processing.
+   * @default 2
+   */
+  maxConcurrentPages?: 1 | 2;
 };
 
 /**
@@ -103,7 +110,7 @@ export type PdfInfo = {
   hasTextLayer: boolean;
 };
 
-export type PdfPageStatus = "success" | "blank" | "failed";
+export type PdfPageStatus = "success" | "blank" | "failed" | "cancelled";
 
 export type PdfPageError = {
   code: string;
@@ -128,6 +135,8 @@ export type RecognizePdfPagesOptions = {
   mode?: "fast" | "accurate";
   automaticallyDetectsLanguage?: boolean;
   usesLanguageCorrection?: boolean;
+  /** Maximum concurrent Vision OCR page requests. Defaults to 2. */
+  maxConcurrentPages?: 1 | 2;
 };
 
 export type PdfPageRangeResult = {
@@ -135,4 +144,18 @@ export type PdfPageRangeResult = {
   startPage: number;
   endPage: number;
   pages: PdfPageResult[];
+  cancelled?: boolean;
+};
+
+/** A native PDF session that keeps its document open across page ranges. */
+export type PdfOcrSession = {
+  sessionId: string;
+  info: PdfInfo;
+};
+
+export type RecognizePdfSessionPagesOptions = Omit<
+  RecognizePdfPagesOptions,
+  "uri"
+> & {
+  sessionId: string;
 };

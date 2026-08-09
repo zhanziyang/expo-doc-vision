@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name           = 'ExpoDocVision'
-  s.version        = '0.2.0'
+  s.version        = '0.3.0'
   s.summary        = 'Expo native module for offline document OCR on iOS using Apple Vision & PDFKit'
   s.description    = <<-DESC
     expo-doc-vision is an Expo native module that provides offline document OCR

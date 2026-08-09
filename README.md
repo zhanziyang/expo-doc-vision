@@ -41,11 +41,11 @@ yarn add expo-doc-vision
 
 ### iOS Version Compatibility
 
-| iOS Version | Features |
-|-------------|----------|
+| iOS Version   | Features                                             |
+| ------------- | ---------------------------------------------------- |
 | **iOS 13-14** | Basic OCR, PDF text extraction, English only (en-US) |
-| **iOS 15** | Multi-language support (18+ languages) |
-| **iOS 16+** | Auto language detection, improved accuracy |
+| **iOS 15**    | Multi-language support (18+ languages)               |
+| **iOS 16+**   | Auto language detection, improved accuracy           |
 
 > **Note:** `automaticallyDetectsLanguage` and `usesLanguageCorrection` options require iOS 16+. On older versions, these options are ignored gracefully.
 
@@ -73,11 +73,11 @@ npx expo run:ios
 ### Basic Usage
 
 ```typescript
-import { recognize } from 'expo-doc-vision';
+import { recognize } from "expo-doc-vision";
 
 // Recognize text from an image
 const result = await recognize({
-  uri: 'file:///path/to/image.jpg',
+  uri: "file:///path/to/image.jpg",
 });
 
 console.log(result.text);
@@ -87,11 +87,11 @@ console.log(result.text);
 ### PDF Documents
 
 ```typescript
-import { recognize } from 'expo-doc-vision';
+import { recognize } from "expo-doc-vision";
 
 // Recognize text from a PDF
 const result = await recognize({
-  uri: 'file:///path/to/document.pdf',
+  uri: "file:///path/to/document.pdf",
 });
 
 console.log(result.text);
@@ -106,53 +106,72 @@ console.log(result.source);
 
 ### Large and Mixed PDFs
 
-Process large PDFs in small, resumable ranges instead of waiting for the entire
-document:
+Use a session to open a large PDF once, then process it in small, resumable
+ranges:
 
 ```typescript
-import { getPdfInfo, recognizePdfPages } from 'expo-doc-vision';
+import {
+  closePdfOcrSession,
+  createPdfOcrSession,
+  recognizePdfSessionPages,
+} from "expo-doc-vision";
 
-const uri = 'file:///path/to/large-scanned-book.pdf';
-const info = await getPdfInfo(uri);
+const uri = "file:///path/to/large-scanned-book.pdf";
+const session = await createPdfOcrSession(uri);
 
-for (let startPage = 1; startPage <= info.pageCount; startPage += 5) {
-  const result = await recognizePdfPages({
-    uri,
-    startPage,
-    endPage: Math.min(startPage + 4, info.pageCount),
-    language: ['zh-Hans'],
-  });
+try {
+  for (let startPage = 1; startPage <= session.info.pageCount; startPage += 5) {
+    const result = await recognizePdfSessionPages({
+      sessionId: session.sessionId,
+      startPage,
+      endPage: Math.min(startPage + 4, session.info.pageCount),
+      language: ["zh-Hans"],
+      maxConcurrentPages: 1, // 1 = serial, 2 = up to two pages (default)
+    });
 
-  // Persist successful/blank pages and retry failed pages as needed.
-  console.log(result.pages);
+    // Results are always in page order. Persist each completed batch here.
+    console.log(result.pages);
+  }
+} finally {
+  await closePdfOcrSession(session.sessionId);
 }
 ```
 
 PDF page ranges are 1-based and inclusive. Each requested page is returned with
-`success`, `blank`, or `failed` status. Mixed PDFs use their text layer where
-available and Vision OCR only on scanned pages.
+`success`, `blank`, `failed`, or `cancelled` status. Set
+`maxConcurrentPages` to `1` for serial processing or `2` for up to two pages at
+once (the default); results always remain in page order. Mixed PDFs use their
+text layer where available and Vision OCR only on scanned pages.
+
+Call `cancelPdfOcrSession(sessionId)` to stop queued pages and release the
+session. Up to two pages already inside Vision may finish before the range
+promise resolves; pages that did not start are returned as `cancelled`.
+
+`recognizePdfPages()` remains available for one-off ranges, but opens the PDF
+for each call. Prefer a session when processing multiple ranges from one file.
 
 ### With Options
 
 ```typescript
-import { recognize } from 'expo-doc-vision';
+import { recognize } from "expo-doc-vision";
 
 const result = await recognize({
-  uri: 'file:///path/to/document.pdf',
-  type: 'auto',              // 'auto' | 'pdf' | 'image' | 'epub'
-  mode: 'accurate',          // 'fast' | 'accurate'
-  language: ['en-US', 'zh-Hans'], // BCP 47 language codes
+  uri: "file:///path/to/document.pdf",
+  type: "auto", // 'auto' | 'pdf' | 'image' | 'epub'
+  mode: "accurate", // 'fast' | 'accurate'
+  language: ["en-US", "zh-Hans"], // BCP 47 language codes
+  maxConcurrentPages: 1, // PDF only: 1 (serial) | 2 (default)
 });
 ```
 
 ### EPUB Documents
 
 ```typescript
-import { recognize } from 'expo-doc-vision';
+import { recognize } from "expo-doc-vision";
 
 // Recognize text from an EPUB
 const result = await recognize({
-  uri: 'file:///path/to/book.epub',
+  uri: "file:///path/to/book.epub",
 });
 
 console.log(result.source);
@@ -176,56 +195,68 @@ Recognizes an inclusive page range. Page-level failures are returned in the
 `pages` array and do not reject the whole range. Invalid ranges and document
 load failures reject the promise.
 
+### PDF OCR sessions
+
+- `createPdfOcrSession(uri)` opens a PDF and returns its session ID and metadata.
+- `recognizePdfSessionPages(options)` processes ranges without reopening the PDF.
+- `cancelPdfOcrSession(sessionId)` cooperatively cancels queued work and releases the session.
+- `closePdfOcrSession(sessionId)` releases a completed session.
+
 #### RecognizeOptions
 
-| Property | Type | Default | Description |
-|----------|------|---------|-------------|
-| `uri` | `string` | *required* | URI of the document (file://, content://, or absolute path) |
-| `type` | `'auto' \| 'pdf' \| 'image' \| 'epub'` | `'auto'` | Document type (auto-detected from extension) |
-| `mode` | `'fast' \| 'accurate'` | `'accurate'` | Recognition mode |
-| `language` | `string[]` | `[]` | Recognition languages (BCP 47 codes) |
-| `automaticallyDetectsLanguage` | `boolean` | `true` | Auto-detect language (iOS 16+) |
-| `usesLanguageCorrection` | `boolean` | `true` | Apply language-specific corrections |
+| Property                       | Type                                   | Default      | Description                                                 |
+| ------------------------------ | -------------------------------------- | ------------ | ----------------------------------------------------------- |
+| `uri`                          | `string`                               | _required_   | URI of the document (file://, content://, or absolute path) |
+| `type`                         | `'auto' \| 'pdf' \| 'image' \| 'epub'` | `'auto'`     | Document type (auto-detected from extension)                |
+| `mode`                         | `'fast' \| 'accurate'`                 | `'accurate'` | Recognition mode                                            |
+| `language`                     | `string[]`                             | `[]`         | Recognition languages (BCP 47 codes)                        |
+| `automaticallyDetectsLanguage` | `boolean`                              | `true`       | Auto-detect language (iOS 16+)                              |
+| `usesLanguageCorrection`       | `boolean`                              | `true`       | Apply language-specific corrections                         |
+| `maxConcurrentPages`           | `1 \| 2`                                | `2`          | Maximum concurrent PDF page OCR requests                    |
 
 #### OcrResult
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `text` | `string` | Full concatenated text from all pages |
-| `pages` | `OcrPageResult[]` | Per-page results (only for multi-page documents) |
-| `source` | `'vision' \| 'pdf-text' \| 'docx-xml' \| 'txt' \| 'epub-html'` | Source of text extraction |
+| Property | Type                                                           | Description                                      |
+| -------- | -------------------------------------------------------------- | ------------------------------------------------ |
+| `text`   | `string`                                                       | Full concatenated text from all pages            |
+| `pages`  | `OcrPageResult[]`                                              | Per-page results (only for multi-page documents) |
+| `source` | `'vision' \| 'pdf-text' \| 'docx-xml' \| 'txt' \| 'epub-html'` | Source of text extraction                        |
 
 #### OcrPageResult
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `page` | `number` | Page number (1-indexed) |
-| `text` | `string` | Recognized text from this page |
+| Property | Type     | Description                    |
+| -------- | -------- | ------------------------------ |
+| `page`   | `number` | Page number (1-indexed)        |
+| `text`   | `string` | Recognized text from this page |
 
 ### Error Handling
 
 ```typescript
-import { recognize, ExpoDocVisionError, ExpoDocVisionErrorCode } from 'expo-doc-vision';
+import {
+  recognize,
+  ExpoDocVisionError,
+  ExpoDocVisionErrorCode,
+} from "expo-doc-vision";
 
 try {
-  const result = await recognize({ uri: 'file:///invalid/path.pdf' });
+  const result = await recognize({ uri: "file:///invalid/path.pdf" });
 } catch (error) {
   if (error instanceof ExpoDocVisionError) {
     switch (error.code) {
       case ExpoDocVisionErrorCode.FILE_NOT_FOUND:
-        console.error('File not found');
+        console.error("File not found");
         break;
       case ExpoDocVisionErrorCode.UNSUPPORTED_FILE_TYPE:
-        console.error('Unsupported file type');
+        console.error("Unsupported file type");
         break;
       case ExpoDocVisionErrorCode.DOCUMENT_LOAD_FAILED:
-        console.error('Failed to load document');
+        console.error("Failed to load document");
         break;
       case ExpoDocVisionErrorCode.OCR_FAILED:
-        console.error('OCR processing failed');
+        console.error("OCR processing failed");
         break;
       case ExpoDocVisionErrorCode.PLATFORM_NOT_SUPPORTED:
-        console.error('Platform not supported (iOS only)');
+        console.error("Platform not supported (iOS only)");
         break;
     }
   }
@@ -234,20 +265,20 @@ try {
 
 ## Supported File Types
 
-| Type | Extensions | Strategy |
-|------|------------|----------|
-| Image | `.jpg`, `.jpeg`, `.png`, `.heic`, `.heif` | Apple Vision OCR |
-| PDF (text-based) | `.pdf` | PDFKit text extraction |
-| PDF (scanned) | `.pdf` | PDFKit → render → Vision OCR |
-| DOCX | `.docx` | Offline XML extraction (no OCR) |
-| TXT | `.txt` | Direct read with encoding detection |
-| EPUB | `.epub` | Offline HTML/XHTML extraction |
+| Type             | Extensions                                | Strategy                            |
+| ---------------- | ----------------------------------------- | ----------------------------------- |
+| Image            | `.jpg`, `.jpeg`, `.png`, `.heic`, `.heif` | Apple Vision OCR                    |
+| PDF (text-based) | `.pdf`                                    | PDFKit text extraction              |
+| PDF (scanned)    | `.pdf`                                    | PDFKit → render → Vision OCR        |
+| DOCX             | `.docx`                                   | Offline XML extraction (no OCR)     |
+| TXT              | `.txt`                                    | Direct read with encoding detection |
+| EPUB             | `.epub`                                   | Offline HTML/XHTML extraction       |
 
 ## Limitations
 
 - **iOS only** — Android support is planned for future releases
 - **No bounding boxes** — Only text content is returned
-- **No progress events** — Use small PDF page-range calls to report progress and cancel between ranges
+- **No progress events** — Use small PDF page-range calls to report progress
 - **No handwriting** — Optimized for printed text
 - **No .doc support** — Legacy Word binary format (`.doc`) cannot be parsed offline; convert to `.docx` or `.pdf`
 
@@ -258,7 +289,7 @@ try {
 1. Load PDF using `PDFDocument`
 2. Inspect each page for a usable text layer
 3. Extract text directly from text-backed pages
-4. Render scanned pages to images and run Vision OCR
+4. Render scanned pages to images and run at most two Vision OCR requests concurrently
 
 ### Image Processing
 

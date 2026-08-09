@@ -14,6 +14,9 @@ export enum ExpoDocVisionErrorCode {
   /** OCR processing failed. */
   OCR_FAILED = "OCR_FAILED",
 
+  /** Recognition was cancelled before the page started. */
+  CANCELLED = "CANCELLED",
+
   /** Invalid options provided. */
   INVALID_OPTIONS = "INVALID_OPTIONS",
 

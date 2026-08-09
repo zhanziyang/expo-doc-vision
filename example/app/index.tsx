@@ -13,8 +13,9 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import {
   recognize,
-  getPdfInfo,
-  recognizePdfPages,
+  closePdfOcrSession,
+  createPdfOcrSession,
+  recognizePdfSessionPages,
   RecognizeResult,
   ExpoDocVisionError,
 } from 'expo-doc-vision';
@@ -35,11 +36,14 @@ function ResultDisplay({
   setShowFullText: (show: boolean) => void;
   TEXT_PREVIEW_LIMIT: number;
 }) {
-  const normalizedText = useMemo(() => normalizeText(result.text), [result.text, normalizeText]);
+  const normalizedText = useMemo(
+    () => normalizeText(result.text),
+    [result.text, normalizeText],
+  );
   const isLongText = normalizedText.length > TEXT_PREVIEW_LIMIT;
   const textChunks = useMemo(
     () => (showFullText ? splitIntoChunks(normalizedText) : []),
-    [showFullText, normalizedText, splitIntoChunks]
+    [showFullText, normalizedText, splitIntoChunks],
   );
 
   return (
@@ -84,7 +88,9 @@ function ResultDisplay({
             onPress={() => setShowFullText(!showFullText)}
           >
             <Text style={styles.showMoreText}>
-              {showFullText ? 'Show less' : `Show all (${normalizedText.length} chars)`}
+              {showFullText
+                ? 'Show less'
+                : `Show all (${normalizedText.length} chars)`}
             </Text>
           </TouchableOpacity>
         )}
@@ -165,6 +171,7 @@ export default function Index() {
         uri,
         mode,
         automaticallyDetectsLanguage: true,
+        maxConcurrentPages: 1,
         // language: ['en-US'],
       });
       setResult(ocrResult);
@@ -185,27 +192,38 @@ export default function Index() {
     setResult(null);
 
     try {
-      const info = await getPdfInfo(uri);
-      if (info.pageCount === 0) {
+      const session = await createPdfOcrSession(uri);
+      if (session.info.pageCount === 0) {
+        await closePdfOcrSession(session.sessionId);
         setResult({ text: '', pages: [], source: 'pdf-text' });
         return;
       }
 
-      const range = await recognizePdfPages({
-        uri,
+      const range = await recognizePdfSessionPages({
+        sessionId: session.sessionId,
         startPage: 1,
-        endPage: Math.min(5, info.pageCount),
+        endPage: Math.min(5, session.info.pageCount),
         mode,
         automaticallyDetectsLanguage: true,
-      });
-      const failedPages = range.pages.filter((page) => page.status === 'failed');
+        maxConcurrentPages: 1,
+      }).finally(() => closePdfOcrSession(session.sessionId));
+      const failedPages = range.pages.filter(
+        (page) => page.status === 'failed',
+      );
       if (failedPages.length > 0) {
-        setError(`Failed pages: ${failedPages.map((page) => page.page).join(', ')}`);
+        setError(
+          `Failed pages: ${failedPages.map((page) => page.page).join(', ')}`,
+        );
       }
       setResult({
-        text: range.pages.map((page) => page.text).filter(Boolean).join('\n\n'),
+        text: range.pages
+          .map((page) => page.text)
+          .filter(Boolean)
+          .join('\n\n'),
         pages: range.pages.map(({ page, text }) => ({ page, text })),
-        source: range.pages.some((page) => page.source === 'vision') ? 'vision' : 'pdf-text',
+        source: range.pages.some((page) => page.source === 'vision')
+          ? 'vision'
+          : 'pdf-text',
       });
     } catch (e) {
       if (e instanceof ExpoDocVisionError) {
@@ -221,7 +239,8 @@ export default function Index() {
   const pickImage = async () => {
     clearState();
 
-    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    const permissionResult =
+      await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permissionResult.granted) {
       setError('Permission to access photos was denied');
       return;
@@ -286,8 +305,12 @@ export default function Index() {
   };
 
   const fileExtension = selectedFile?.toLowerCase().split('.').pop();
-  const isImage = selectedFile && !['pdf', 'docx', 'txt', 'epub'].includes(fileExtension || '');
-  const isDocument = selectedFile && ['pdf', 'docx', 'txt', 'epub'].includes(fileExtension || '');
+  const isImage =
+    selectedFile &&
+    !['pdf', 'docx', 'txt', 'epub'].includes(fileExtension || '');
+  const isDocument =
+    selectedFile &&
+    ['pdf', 'docx', 'txt', 'epub'].includes(fileExtension || '');
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -306,18 +329,34 @@ export default function Index() {
         <Text style={styles.modeLabel}>Recognition Mode:</Text>
         <View style={styles.modeButtons}>
           <TouchableOpacity
-            style={[styles.modeButton, mode === 'fast' && styles.modeButtonActive]}
+            style={[
+              styles.modeButton,
+              mode === 'fast' && styles.modeButtonActive,
+            ]}
             onPress={() => setMode('fast')}
           >
-            <Text style={[styles.modeButtonText, mode === 'fast' && styles.modeButtonTextActive]}>
+            <Text
+              style={[
+                styles.modeButtonText,
+                mode === 'fast' && styles.modeButtonTextActive,
+              ]}
+            >
               Fast
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.modeButton, mode === 'accurate' && styles.modeButtonActive]}
+            style={[
+              styles.modeButton,
+              mode === 'accurate' && styles.modeButtonActive,
+            ]}
             onPress={() => setMode('accurate')}
           >
-            <Text style={[styles.modeButtonText, mode === 'accurate' && styles.modeButtonTextActive]}>
+            <Text
+              style={[
+                styles.modeButtonText,
+                mode === 'accurate' && styles.modeButtonTextActive,
+              ]}
+            >
               Accurate
             </Text>
           </TouchableOpacity>
@@ -346,7 +385,11 @@ export default function Index() {
       {selectedFile && isImage && (
         <View style={styles.previewContainer}>
           <Text style={styles.sectionTitle}>Selected Image:</Text>
-          <Image source={{ uri: selectedFile }} style={styles.preview} resizeMode="contain" />
+          <Image
+            source={{ uri: selectedFile }}
+            style={styles.preview}
+            resizeMode="contain"
+          />
         </View>
       )}
 
@@ -364,14 +407,16 @@ export default function Index() {
         </View>
       )}
 
-      {result && <ResultDisplay
-        result={result}
-        normalizeText={normalizeText}
-        splitIntoChunks={splitIntoChunks}
-        showFullText={showFullText}
-        setShowFullText={setShowFullText}
-        TEXT_PREVIEW_LIMIT={TEXT_PREVIEW_LIMIT}
-      />}
+      {result && (
+        <ResultDisplay
+          result={result}
+          normalizeText={normalizeText}
+          splitIntoChunks={splitIntoChunks}
+          showFullText={showFullText}
+          setShowFullText={setShowFullText}
+          TEXT_PREVIEW_LIMIT={TEXT_PREVIEW_LIMIT}
+        />
+      )}
     </ScrollView>
   );
 }

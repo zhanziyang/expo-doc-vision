@@ -29,13 +29,15 @@ struct PdfPageRangeResult {
     let startPage: Int
     let endPage: Int
     let pages: [[String: Any]]
+    let cancelled: Bool
 
     var dictionary: [String: Any] {
         [
             "pageCount": pageCount,
             "startPage": startPage,
             "endPage": endPage,
-            "pages": pages
+            "pages": pages,
+            "cancelled": cancelled
         ]
     }
 }
@@ -46,6 +48,10 @@ class PdfRecognizer {
 
     static func getInfo(pdfAt url: URL) throws -> PdfInfoResult {
         let document = try loadDocument(at: url)
+        return getInfo(document: document)
+    }
+
+    static func getInfo(document: PDFDocument) -> PdfInfoResult {
         var textPageCount = 0
 
         for pageIndex in 0..<document.pageCount {
@@ -65,7 +71,8 @@ class PdfRecognizer {
         languages: [String],
         mode: RecognitionMode,
         automaticallyDetectsLanguage: Bool?,
-        usesLanguageCorrection: Bool?
+        usesLanguageCorrection: Bool?,
+        maxConcurrentPages: Int
     ) throws -> PdfRecognitionResult {
         let document = try loadDocument(at: url)
         guard document.pageCount > 0 else {
@@ -79,10 +86,15 @@ class PdfRecognizer {
             languages: languages,
             mode: mode,
             automaticallyDetectsLanguage: automaticallyDetectsLanguage,
-            usesLanguageCorrection: usesLanguageCorrection
+            usesLanguageCorrection: usesLanguageCorrection,
+            maxConcurrentPages: maxConcurrentPages,
+            documentLock: NSLock()
         )
 
-        if let failedPage = rangeResult.pages.first(where: { $0["status"] as? String == "failed" }) {
+        if let failedPage = rangeResult.pages.first(where: {
+            let status = $0["status"] as? String
+            return status == "failed" || status == "cancelled"
+        }) {
             let page = failedPage["page"] as? Int ?? 0
             let pageError = failedPage["error"] as? [String: Any]
             let message = pageError?["message"] as? String ?? "PDF page recognition failed"
@@ -118,7 +130,8 @@ class PdfRecognizer {
         languages: [String],
         mode: RecognitionMode,
         automaticallyDetectsLanguage: Bool?,
-        usesLanguageCorrection: Bool?
+        usesLanguageCorrection: Bool?,
+        maxConcurrentPages: Int
     ) throws -> PdfPageRangeResult {
         let document = try loadDocument(at: url)
         return try recognizePages(
@@ -128,18 +141,23 @@ class PdfRecognizer {
             languages: languages,
             mode: mode,
             automaticallyDetectsLanguage: automaticallyDetectsLanguage,
-            usesLanguageCorrection: usesLanguageCorrection
+            usesLanguageCorrection: usesLanguageCorrection,
+            maxConcurrentPages: maxConcurrentPages,
+            documentLock: NSLock()
         )
     }
 
-    private static func recognizePages(
+    static func recognizePages(
         document: PDFDocument,
         startPage: Int,
         endPage: Int,
         languages: [String],
         mode: RecognitionMode,
         automaticallyDetectsLanguage: Bool?,
-        usesLanguageCorrection: Bool?
+        usesLanguageCorrection: Bool?,
+        maxConcurrentPages: Int,
+        cancellationToken: PdfCancellationToken? = nil,
+        documentLock: NSLock
     ) throws -> PdfPageRangeResult {
         guard startPage >= 1, endPage >= startPage, endPage <= document.pageCount else {
             throw makeError(
@@ -147,28 +165,48 @@ class PdfRecognizer {
                 message: "Page range must satisfy 1 <= startPage <= endPage <= \(document.pageCount)"
             )
         }
+        guard (1...2).contains(maxConcurrentPages) else {
+            throw makeError(domain: "INVALID_OPTIONS", message: "maxConcurrentPages must be 1 or 2")
+        }
 
-        var results: [[String: Any]] = []
+        let queue = OperationQueue()
+        queue.maxConcurrentOperationCount = maxConcurrentPages
+        queue.qualityOfService = .userInitiated
+        let resultStore = PdfPageResultStore()
 
         for pageNumber in startPage...endPage {
-            let result: [String: Any] = autoreleasepool {
-                recognizePage(
-                    document: document,
-                    pageNumber: pageNumber,
-                    languages: languages,
-                    mode: mode,
-                    automaticallyDetectsLanguage: automaticallyDetectsLanguage,
-                    usesLanguageCorrection: usesLanguageCorrection
-                )
+            queue.addOperation {
+                let result: [String: Any] = autoreleasepool {
+                    if cancellationToken?.isCancelled == true {
+                        return cancelledPage(pageNumber: pageNumber)
+                    }
+                    return recognizePage(
+                        document: document,
+                        pageNumber: pageNumber,
+                        languages: languages,
+                        mode: mode,
+                        automaticallyDetectsLanguage: automaticallyDetectsLanguage,
+                        usesLanguageCorrection: usesLanguageCorrection,
+                        cancellationToken: cancellationToken,
+                        documentLock: documentLock
+                    )
+                }
+                resultStore.set(result, for: pageNumber)
             }
-            results.append(result)
         }
+        queue.waitUntilAllOperationsAreFinished()
+
+        let results = (startPage...endPage).map { pageNumber in
+            resultStore.get(pageNumber) ?? cancelledPage(pageNumber: pageNumber)
+        }
+        let wasCancelled = results.contains { $0["status"] as? String == "cancelled" }
 
         return PdfPageRangeResult(
             pageCount: document.pageCount,
             startPage: startPage,
             endPage: endPage,
-            pages: results
+            pages: results,
+            cancelled: wasCancelled
         )
     }
 
@@ -178,8 +216,22 @@ class PdfRecognizer {
         languages: [String],
         mode: RecognitionMode,
         automaticallyDetectsLanguage: Bool?,
-        usesLanguageCorrection: Bool?
+        usesLanguageCorrection: Bool?,
+        cancellationToken: PdfCancellationToken?,
+        documentLock: NSLock
     ) -> [String: Any] {
+        if cancellationToken?.isCancelled == true {
+            return cancelledPage(pageNumber: pageNumber)
+        }
+
+        documentLock.lock()
+        var documentIsLocked = true
+        defer {
+            if documentIsLocked {
+                documentLock.unlock()
+            }
+        }
+
         guard let page = document.page(at: pageNumber - 1) else {
             return failedPage(
                 pageNumber: pageNumber,
@@ -195,6 +247,12 @@ class PdfRecognizer {
 
         do {
             let pageImage = try renderPageToImage(page: page)
+            documentLock.unlock()
+            documentIsLocked = false
+
+            if cancellationToken?.isCancelled == true {
+                return cancelledPage(pageNumber: pageNumber)
+            }
             let text = try ImageRecognizer.performOCR(
                 on: pageImage,
                 languages: languages,
@@ -206,6 +264,19 @@ class PdfRecognizer {
         } catch {
             return failedPage(pageNumber: pageNumber, source: "vision", error: error)
         }
+    }
+
+    private static func cancelledPage(pageNumber: Int) -> [String: Any] {
+        [
+            "page": pageNumber,
+            "text": "",
+            "status": "cancelled",
+            "source": "vision",
+            "error": [
+                "code": "CANCELLED",
+                "message": "PDF page recognition was cancelled"
+            ]
+        ]
     }
 
     private static func successfulPage(pageNumber: Int, text: String, source: String) -> [String: Any] {
@@ -238,7 +309,7 @@ class PdfRecognizer {
         return !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    private static func loadDocument(at url: URL) throws -> PDFDocument {
+    static func loadDocument(at url: URL) throws -> PDFDocument {
         guard let document = PDFDocument(url: url) else {
             throw makeError(
                 domain: "DOCUMENT_LOAD_FAILED",
@@ -285,7 +356,7 @@ class PdfRecognizer {
 
     private static func knownErrorCode(_ domain: String) -> String {
         switch domain {
-        case "DOCUMENT_LOAD_FAILED", "OCR_FAILED", "FILE_NOT_FOUND", "INVALID_OPTIONS":
+        case "DOCUMENT_LOAD_FAILED", "OCR_FAILED", "FILE_NOT_FOUND", "INVALID_OPTIONS", "CANCELLED":
             return domain
         default:
             return "OCR_FAILED"
@@ -294,5 +365,39 @@ class PdfRecognizer {
 
     private static func makeError(domain: String, message: String) -> NSError {
         NSError(domain: domain, code: 0, userInfo: [NSLocalizedDescriptionKey: message])
+    }
+}
+
+final class PdfCancellationToken {
+    private let lock = NSLock()
+    private var cancelled = false
+
+    var isCancelled: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return cancelled
+    }
+
+    func cancel() {
+        lock.lock()
+        cancelled = true
+        lock.unlock()
+    }
+}
+
+private final class PdfPageResultStore {
+    private let lock = NSLock()
+    private var results: [Int: [String: Any]] = [:]
+
+    func set(_ result: [String: Any], for pageNumber: Int) {
+        lock.lock()
+        results[pageNumber] = result
+        lock.unlock()
+    }
+
+    func get(_ pageNumber: Int) -> [String: Any]? {
+        lock.lock()
+        defer { lock.unlock() }
+        return results[pageNumber]
     }
 }

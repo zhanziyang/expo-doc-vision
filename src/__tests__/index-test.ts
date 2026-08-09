@@ -4,9 +4,13 @@ import ExpoDocVisionModule from "../ExpoDocVisionModule";
 import {
   ExpoDocVisionError,
   ExpoDocVisionErrorCode,
+  cancelPdfOcrSession,
+  closePdfOcrSession,
+  createPdfOcrSession,
   getPdfInfo,
   recognize,
   recognizePdfPages,
+  recognizePdfSessionPages,
 } from "../index";
 
 jest.mock("react-native", () => ({ Platform: { OS: "ios" } }));
@@ -17,6 +21,10 @@ jest.mock("../ExpoDocVisionModule", () => ({
     recognize: jest.fn(),
     getPdfInfo: jest.fn(),
     recognizePdfPages: jest.fn(),
+    createPdfOcrSession: jest.fn(),
+    recognizePdfSessionPages: jest.fn(),
+    cancelPdfOcrSession: jest.fn(),
+    closePdfOcrSession: jest.fn(),
   },
 }));
 
@@ -45,6 +53,7 @@ describe("expo-doc-vision API", () => {
       mode: "accurate",
       automaticallyDetectsLanguage: undefined,
       usesLanguageCorrection: undefined,
+      maxConcurrentPages: 2,
     });
   });
 
@@ -54,6 +63,7 @@ describe("expo-doc-vision API", () => {
       startPage: 2,
       endPage: 4,
       pages: [],
+      cancelled: false,
     });
 
     await recognizePdfPages({
@@ -68,6 +78,7 @@ describe("expo-doc-vision API", () => {
       endPage: 4,
       language: [],
       mode: "accurate",
+      maxConcurrentPages: 2,
     });
   });
 
@@ -132,5 +143,97 @@ describe("expo-doc-vision API", () => {
       code: ExpoDocVisionErrorCode.OCR_FAILED,
       message: "Unknown",
     });
+  });
+
+  it("opens a PDF session and normalizes session range options", async () => {
+    nativeModule.createPdfOcrSession.mockResolvedValue({
+      sessionId: "session-1",
+      info: {
+        pageCount: 362,
+        textPageCount: 0,
+        scannedPageCount: 362,
+        hasTextLayer: false,
+      },
+    });
+    nativeModule.recognizePdfSessionPages.mockResolvedValue({
+      pageCount: 362,
+      startPage: 1,
+      endPage: 5,
+      pages: [],
+      cancelled: false,
+    });
+
+    const session = await createPdfOcrSession("file:///book.pdf");
+    await recognizePdfSessionPages({
+      sessionId: session.sessionId,
+      startPage: 1,
+      endPage: 5,
+    });
+
+    expect(nativeModule.createPdfOcrSession).toHaveBeenCalledWith(
+      "file:///book.pdf",
+    );
+    expect(nativeModule.recognizePdfSessionPages).toHaveBeenCalledWith({
+      sessionId: "session-1",
+      startPage: 1,
+      endPage: 5,
+      language: [],
+      mode: "accurate",
+      maxConcurrentPages: 2,
+    });
+  });
+
+  it("cancels and closes sessions through native", async () => {
+    nativeModule.cancelPdfOcrSession.mockResolvedValue();
+    nativeModule.closePdfOcrSession.mockResolvedValue();
+
+    await cancelPdfOcrSession("session-1");
+    await closePdfOcrSession("session-2");
+
+    expect(nativeModule.cancelPdfOcrSession).toHaveBeenCalledWith("session-1");
+    expect(nativeModule.closePdfOcrSession).toHaveBeenCalledWith("session-2");
+  });
+
+  it("rejects an empty session id before calling native", async () => {
+    await expect(
+      recognizePdfSessionPages({
+        sessionId: "",
+        startPage: 1,
+        endPage: 2,
+      }),
+    ).rejects.toMatchObject({ code: ExpoDocVisionErrorCode.INVALID_OPTIONS });
+    expect(nativeModule.recognizePdfSessionPages).not.toHaveBeenCalled();
+  });
+
+  it("passes an app-configured PDF concurrency limit", async () => {
+    nativeModule.recognizePdfPages.mockResolvedValue({
+      pageCount: 2,
+      startPage: 1,
+      endPage: 2,
+      pages: [],
+    });
+
+    await recognizePdfPages({
+      uri: "file:///book.pdf",
+      startPage: 1,
+      endPage: 2,
+      maxConcurrentPages: 1,
+    });
+
+    expect(nativeModule.recognizePdfPages).toHaveBeenCalledWith(
+      expect.objectContaining({ maxConcurrentPages: 1 }),
+    );
+  });
+
+  it("rejects an unsafe PDF concurrency limit", async () => {
+    await expect(
+      recognizePdfPages({
+        uri: "file:///book.pdf",
+        startPage: 1,
+        endPage: 2,
+        maxConcurrentPages: 3 as 2,
+      }),
+    ).rejects.toMatchObject({ code: ExpoDocVisionErrorCode.INVALID_OPTIONS });
+    expect(nativeModule.recognizePdfPages).not.toHaveBeenCalled();
   });
 });

@@ -17,6 +17,28 @@ public class ExpoDocVisionModule: Module {
         AsyncFunction("recognizePdfPages") { (options: [String: Any], promise: Promise) in
             self.handleRecognizePdfPages(options: options, promise: promise)
         }
+
+        AsyncFunction("createPdfOcrSession") { (uri: String, promise: Promise) in
+            self.handleCreatePdfOcrSession(uri: uri, promise: promise)
+        }
+
+        AsyncFunction("recognizePdfSessionPages") { (options: [String: Any], promise: Promise) in
+            self.handleRecognizePdfSessionPages(options: options, promise: promise)
+        }
+
+        AsyncFunction("cancelPdfOcrSession") { (sessionId: String, promise: Promise) in
+            PdfOcrSessionManager.remove(sessionId, cancelling: true)
+            promise.resolve(nil)
+        }
+
+        AsyncFunction("closePdfOcrSession") { (sessionId: String, promise: Promise) in
+            PdfOcrSessionManager.remove(sessionId, cancelling: false)
+            promise.resolve(nil)
+        }
+
+        OnDestroy {
+            PdfOcrSessionManager.closeAll()
+        }
     }
 
     private func handleRecognize(options: [String: Any], promise: Promise) {
@@ -31,6 +53,12 @@ public class ExpoDocVisionModule: Module {
         let modeString = options["mode"] as? String ?? "accurate"
         let automaticallyDetectsLanguage = options["automaticallyDetectsLanguage"] as? Bool
         let usesLanguageCorrection = options["usesLanguageCorrection"] as? Bool
+        let maxConcurrentPages = options["maxConcurrentPages"] as? Int ?? 2
+
+        guard (1...2).contains(maxConcurrentPages) else {
+            promise.reject("INVALID_OPTIONS", "maxConcurrentPages must be 1 or 2")
+            return
+        }
 
         guard modeString == "fast" || modeString == "accurate" else {
             promise.reject("INVALID_OPTIONS", "Unsupported recognition mode: \(modeString)")
@@ -69,7 +97,8 @@ public class ExpoDocVisionModule: Module {
                         languages: languages,
                         mode: mode,
                         automaticallyDetectsLanguage: automaticallyDetectsLanguage,
-                        usesLanguageCorrection: usesLanguageCorrection
+                        usesLanguageCorrection: usesLanguageCorrection,
+                        maxConcurrentPages: maxConcurrentPages
                     )
                     result = [
                         "text": pdfResult.text,
@@ -181,6 +210,11 @@ public class ExpoDocVisionModule: Module {
         let mode: RecognitionMode = modeString == "fast" ? .fast : .accurate
         let automaticallyDetectsLanguage = options["automaticallyDetectsLanguage"] as? Bool
         let usesLanguageCorrection = options["usesLanguageCorrection"] as? Bool
+        let maxConcurrentPages = options["maxConcurrentPages"] as? Int ?? 2
+        guard (1...2).contains(maxConcurrentPages) else {
+            promise.reject("INVALID_OPTIONS", "maxConcurrentPages must be 1 or 2")
+            return
+        }
 
         DispatchQueue.global(qos: .userInitiated).async {
             do {
@@ -191,7 +225,73 @@ public class ExpoDocVisionModule: Module {
                     languages: languages,
                     mode: mode,
                     automaticallyDetectsLanguage: automaticallyDetectsLanguage,
-                    usesLanguageCorrection: usesLanguageCorrection
+                    usesLanguageCorrection: usesLanguageCorrection,
+                    maxConcurrentPages: maxConcurrentPages
+                )
+                DispatchQueue.main.async { promise.resolve(result.dictionary) }
+            } catch {
+                self.reject(error: error, promise: promise)
+            }
+        }
+    }
+
+    private func handleCreatePdfOcrSession(uri: String, promise: Promise) {
+        guard let fileUrl = validateFile(uri: uri, promise: promise) else { return }
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                let session = try PdfOcrSessionManager.create(pdfAt: fileUrl)
+                let result: [String: Any] = [
+                    "sessionId": session.id,
+                    "info": session.info.dictionary
+                ]
+                DispatchQueue.main.async { promise.resolve(result) }
+            } catch {
+                self.reject(error: error, promise: promise)
+            }
+        }
+    }
+
+    private func handleRecognizePdfSessionPages(options: [String: Any], promise: Promise) {
+        guard let sessionId = options["sessionId"] as? String, !sessionId.isEmpty else {
+            promise.reject("INVALID_OPTIONS", "sessionId is required")
+            return
+        }
+        guard let startPage = options["startPage"] as? Int,
+              let endPage = options["endPage"] as? Int else {
+            promise.reject("INVALID_OPTIONS", "startPage and endPage must be integers")
+            return
+        }
+        guard let session = PdfOcrSessionManager.get(sessionId) else {
+            promise.reject("INVALID_OPTIONS", "PDF OCR session not found or already closed")
+            return
+        }
+
+        let languages = options["language"] as? [String] ?? []
+        let modeString = options["mode"] as? String ?? "accurate"
+        guard modeString == "fast" || modeString == "accurate" else {
+            promise.reject("INVALID_OPTIONS", "Unsupported recognition mode: \(modeString)")
+            return
+        }
+        let mode: RecognitionMode = modeString == "fast" ? .fast : .accurate
+        let automaticallyDetectsLanguage = options["automaticallyDetectsLanguage"] as? Bool
+        let usesLanguageCorrection = options["usesLanguageCorrection"] as? Bool
+        let maxConcurrentPages = options["maxConcurrentPages"] as? Int ?? 2
+        guard (1...2).contains(maxConcurrentPages) else {
+            promise.reject("INVALID_OPTIONS", "maxConcurrentPages must be 1 or 2")
+            return
+        }
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                let result = try session.recognizePages(
+                    startPage: startPage,
+                    endPage: endPage,
+                    languages: languages,
+                    mode: mode,
+                    automaticallyDetectsLanguage: automaticallyDetectsLanguage,
+                    usesLanguageCorrection: usesLanguageCorrection,
+                    maxConcurrentPages: maxConcurrentPages
                 )
                 DispatchQueue.main.async { promise.resolve(result.dictionary) }
             } catch {
@@ -237,7 +337,8 @@ public class ExpoDocVisionModule: Module {
              "OCR_FAILED",
              "FILE_NOT_FOUND",
              "UNSUPPORTED_FILE_TYPE",
-             "INVALID_OPTIONS":
+             "INVALID_OPTIONS",
+             "CANCELLED":
             return domain
         default:
             return "OCR_FAILED"
